@@ -1,26 +1,46 @@
-import { Link } from "react-router"
+import axios from "axios"
+import { Link, useLoaderData } from "react-router"
 import type { Route } from "./+types/detail"
 
-// NOTE: 이렇게 하드 코딩하고, 복사 붙여넣기 하면 안됨!
-const pokemons = [
-  { id: 1, name: "이상해씨", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png" },
-  { id: 4, name: "파이리", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png" },
-  { id: 7, name: "꼬부기", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png" },
-  { id: 25, name: "피카츄", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" },
-  { id: 39, name: "니드런♀", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/29.png" },
-  { id: 52, name: "니드런♂", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/32.png" },
-  { id: 133, name: "이브이", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/133.png" },
-  { id: 150, name: "뮤츠", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png" },
-  { id: 151, name: "뮤", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/151.png" },
-  { id: 152, name: "치코리타", image: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/152.png" },
-]
+type Pokemon = {
+  id: number
+  name: string
+  types: { name: string }[]
+  image: string
+  description?: string
+}
 
-export default function Detail({ params }: Route.ComponentProps) {
-  const pokemon = pokemons.find(p => p.id === Number(params.id))
-  if (!pokemon) {
-    return <div className="min-h-screen bg-slate-700 p-6">포켓몬을 찾을 수 없습니다.</div>
+export async function clientLoader({ request }: Route.ClientLoaderArgs) {
+  const url = new URL(request.url)
+  // 맨 마지막 id만 가져옴
+  const pokemonId = url.pathname.split("/").filter(Boolean).pop()
+  const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${pokemonId}`)
+  const { id, name, sprites } = response.data
+
+  const species = await axios.get(`https://pokeapi.co/api/v2/pokemon-species/${id}`)
+
+  const koreanName = species.data.names.find(
+    (item: { language: { name: string } }) => 
+      item.language.name === "ko"
+  )?.name
+
+  const description = species.data.flavor_text_entries.find(
+    (entry: { language: { name: string } }) => 
+      entry.language.name === "ko"
+  )?.flavor_text
+
+  return {
+    id,
+    name: koreanName || name,
+    types: response.data.types,
+    image: sprites.other["official-artwork"].front_default,
+    description
   }
-  
+}
+
+export default function Detail() {
+  const pokemon = useLoaderData<typeof clientLoader>()
+
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <Link 
@@ -35,6 +55,11 @@ export default function Detail({ params }: Route.ComponentProps) {
         <span className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
           No. {pokemon.id}
         </span>
+        {pokemon.description && (
+          <p className="mt-4 text-center text-slate-600 max-w-md mx-auto">
+            {pokemon.description}
+          </p>
+        )}
       </div>
     </div>
   )
